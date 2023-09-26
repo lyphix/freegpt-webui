@@ -1,12 +1,12 @@
 websocket-client
-requests
+requests~=2.31.0
 tls-client
 pypasser
 names
 colorama
 curl_cffi
-aiohttp
-flask
+aiohttp~=3.8.5
+flask~=2.3.3
 flask_cors
 flask-babel
 streamlit
@@ -24,3 +24,6 @@ numpy>=1.22.2 # pinned to avoid a vulnerability
 tornado>=6.3.2 # pinned to avoid a vulnerability
 PyExecJS
 browser_cookie3
+
+Js2Py~=0.74
+certifi~=2023.7.22
