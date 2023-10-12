@@ -1,29 +1,26 @@
 from __future__ import annotations
 
-import asyncio
-import functools
-from asyncio import SelectorEventLoop, AbstractEventLoop
+from asyncio import AbstractEventLoop
 from concurrent.futures import ThreadPoolExecutor
 from abc import ABC, abstractmethod
 
-import browser_cookie3
-
-from ..typing import AsyncGenerator, CreateResult
+from .helper import get_event_loop, get_cookies, format_prompt
+from ..typing import CreateResult, AsyncResult, Messages
 
 
 class BaseProvider(ABC):
     url: str
-    working               = False
-    needs_auth            = False
-    supports_stream       = False
-    supports_gpt_35_turbo = False
-    supports_gpt_4        = False
+    working: bool = False
+    needs_auth: bool = False
+    supports_stream: bool = False
+    supports_gpt_35_turbo: bool = False
+    supports_gpt_4: bool = False
 
     @staticmethod
     @abstractmethod
     def create_completion(
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         stream: bool,
         **kwargs
     ) -> CreateResult:
@@ -33,31 +30,31 @@ class BaseProvider(ABC):
     async def create_async(
         cls,
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         *,
         loop: AbstractEventLoop = None,
         executor: ThreadPoolExecutor = None,
         **kwargs
     ) -> str:
         if not loop:
-            loop = asyncio.get_event_loop()
+            loop = get_event_loop()
 
-        partial_func = functools.partial(
-            cls.create_completion,
-            model,
-            messages,
-            False,
-            **kwargs
-        )
-        response = await loop.run_in_executor(
+        def create_func() -> str:
+            return "".join(cls.create_completion(
+                model,
+                messages,
+                False,
+                **kwargs
+            ))
+
+        return await loop.run_in_executor(
             executor,
-            partial_func
+            create_func
         )
-        return "".join(response)
 
     @classmethod
     @property
-    def params(cls):
+    def params(cls) -> str:
         params = [
             ("model", "str"),
             ("messages", "list[dict[str, str]]"),
@@ -72,21 +69,19 @@ class AsyncProvider(BaseProvider):
     def create_completion(
         cls,
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         stream: bool = False,
         **kwargs
     ) -> CreateResult:
-        loop = create_event_loop()
-        try:
-            yield loop.run_until_complete(cls.create_async(model, messages, **kwargs))
-        finally:
-            loop.close()
+        loop = get_event_loop()
+        coro = cls.create_async(model, messages, **kwargs)
+        yield loop.run_until_complete(coro)
 
     @staticmethod
     @abstractmethod
     async def create_async(
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         **kwargs
     ) -> str:
         raise NotImplementedError()
@@ -99,32 +94,29 @@ class AsyncGeneratorProvider(AsyncProvider):
     def create_completion(
         cls,
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         stream: bool = True,
         **kwargs
     ) -> CreateResult:
-        loop = create_event_loop()
-        try:
-            generator = cls.create_async_generator(
-                model,
-                messages,
-                stream=stream,
-                **kwargs
-            )
-            gen  = generator.__aiter__()
-            while True:
-                try:
-                    yield loop.run_until_complete(gen.__anext__())
-                except StopAsyncIteration:
-                    break
-        finally:
-            loop.close()
+        loop = get_event_loop()
+        generator = cls.create_async_generator(
+            model,
+            messages,
+            stream=stream,
+            **kwargs
+        )
+        gen = generator.__aiter__()
+        while True:
+            try:
+                yield loop.run_until_complete(gen.__anext__())
+            except StopAsyncIteration:
+                break
 
     @classmethod
     async def create_async(
         cls,
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         **kwargs
     ) -> str:
         return "".join([
@@ -135,46 +127,12 @@ class AsyncGeneratorProvider(AsyncProvider):
                 **kwargs
             )
         ])
-        
+
     @staticmethod
     @abstractmethod
     def create_async_generator(
         model: str,
-        messages: list[dict[str, str]],
+        messages: Messages,
         **kwargs
-    ) -> AsyncGenerator:
+    ) -> AsyncResult:
         raise NotImplementedError()
-
-
-# Don't create a new event loop in a running async loop.
-# Force use selector event loop on windows and linux use it anyway.
-def create_event_loop() -> SelectorEventLoop:
-    try:
-        asyncio.get_running_loop()
-    except RuntimeError:
-        return SelectorEventLoop()
-    raise RuntimeError(
-        'Use "create_async" instead of "create" function in a running event loop.')
-
-
-_cookies = {}
-
-def get_cookies(cookie_domain: str) -> dict:
-    if cookie_domain not in _cookies:
-        _cookies[cookie_domain] = {}
-        try:
-            for cookie in browser_cookie3.load(cookie_domain):
-                _cookies[cookie_domain][cookie.name] = cookie.value
-        except:
-            pass
-    return _cookies[cookie_domain]
-
-
-def format_prompt(messages: list[dict[str, str]], add_special_tokens=False):
-    if add_special_tokens or len(messages) > 1:
-        formatted = "\n".join(
-            ["%s: %s" % ((message["role"]).capitalize(), message["content"]) for message in messages]
-        )
-        return f"{formatted}\nAssistant:"
-    else:
-        return messages[0]["content"]

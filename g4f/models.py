@@ -3,23 +3,30 @@ from dataclasses import dataclass
 from .typing     import Union
 from .Provider   import BaseProvider, RetryProvider
 from .Provider   import (
-    ChatgptLogin,
-    ChatgptAi, 
-    ChatBase, 
-    Vercel, 
-    DeepAi, 
-    Aivvm, 
-    Bard, 
-    H2o,
-    GptGo,
-    Bing,
-    PerplexityAi,
-    Wewordle,
-    Yqcloud,
-    AItianhu,
     AItianhuSpace,
-    Aichat,
+    ChatgptLogin,
+    ChatgptDemo,
+    ChatgptDuo,
+    Vitalentum,
+    ChatgptAi,
+    AItianhu,
+    ChatBase,
+    Liaobots,
+    Yqcloud,
     Myshell,
+    FreeGpt,
+    Vercel, 
+    Aichat,
+    GPTalk,
+    GptGod,
+    AiAsk,
+    GptGo,
+    Ylokh,
+    Bard, 
+    Aibn,
+    Bing,
+    You,
+    H2o,
 )
 
 @dataclass(unsafe_hash=True)
@@ -28,18 +35,26 @@ class Model:
     base_provider: str
     best_provider: Union[type[BaseProvider], RetryProvider] = None
 
-# Config for HuggingChat, OpenAssistant
-# Works for Liaobots, H2o, OpenaiChat, Yqcloud, You
 default = Model(
     name          = "",
     base_provider = "",
     best_provider = RetryProvider([
         Bing,         # Not fully GPT 3 or 4
-        PerplexityAi, # Adds references to sources
-        Wewordle,     # Responds with markdown
         Yqcloud,      # Answers short questions in chinese
         ChatBase,     # Don't want to answer creatively
-        DeepAi, ChatgptLogin, ChatgptAi, Aivvm, GptGo, AItianhu, AItianhuSpace, Aichat, Myshell,
+        ChatgptDuo,   # Include search results
+        Aibn, Aichat, ChatgptAi, ChatgptLogin, FreeGpt, GptGo, Myshell, Ylokh,
+    ])
+)
+
+# GPT-3.5 too, but all providers supports long responses and a custom timeouts
+gpt_35_long = Model(
+    name          = 'gpt-3.5-turbo',
+    base_provider = 'openai',
+    best_provider = RetryProvider([
+        AiAsk, Aibn, Aichat, ChatgptAi, ChatgptDemo, ChatgptDuo,
+        FreeGpt, GptGo, Liaobots, Myshell, Vitalentum, Ylokh, You, Yqcloud,
+        GPTalk, GptGod
     ])
 )
 
@@ -48,7 +63,7 @@ gpt_35_turbo = Model(
     name          = 'gpt-3.5-turbo',
     base_provider = 'openai',
     best_provider = RetryProvider([
-        DeepAi, ChatgptLogin, ChatgptAi, Aivvm, GptGo, AItianhu, Aichat, AItianhuSpace, Myshell,
+        ChatgptLogin, ChatgptAi, GptGo, AItianhu, Aichat, AItianhuSpace, Myshell, Aibn, FreeGpt, Ylokh
     ])
 )
 
@@ -56,7 +71,7 @@ gpt_4 = Model(
     name          = 'gpt-4',
     base_provider = 'openai',
     best_provider = RetryProvider([
-        Aivvm, Myshell, AItianhuSpace,
+        Bing
     ])
 )
 
@@ -150,20 +165,33 @@ gpt_35_turbo_16k = Model(
 
 gpt_35_turbo_16k_0613 = Model(
     name          = 'gpt-3.5-turbo-16k-0613',
-    base_provider = 'openai')
+    base_provider = 'openai',
+    best_provider = gpt_35_turbo.best_provider
+)
 
 gpt_35_turbo_0613 = Model(
     name          = 'gpt-3.5-turbo-0613',
     base_provider = 'openai',
-    best_provider = RetryProvider([
-        Aivvm, ChatgptLogin
-    ])
+    best_provider = gpt_35_turbo.best_provider
 )
 
 gpt_4_0613 = Model(
     name          = 'gpt-4-0613',
     base_provider = 'openai',
-    best_provider = Vercel)
+    best_provider = gpt_4.best_provider
+)
+
+gpt_4_32k = Model(
+    name          = 'gpt-4-32k',
+    base_provider = 'openai',
+    best_provider = gpt_4.best_provider
+)
+
+gpt_4_32k_0613 = Model(
+    name          = 'gpt-4-32k-0613',
+    base_provider = 'openai',
+    best_provider = gpt_4.best_provider
+)
 
 text_ada_001 = Model(
     name          = 'text-ada-001',
@@ -203,12 +231,17 @@ llama7b_v2_chat = Model(
 
 class ModelUtils:
     convert: dict[str, Model] = {
-        # gpt-3.5 / gpt-4
+        # gpt-3.5
         'gpt-3.5-turbo'          : gpt_35_turbo,
+        'gpt-3.5-turbo-0613'     : gpt_35_turbo_0613,
         'gpt-3.5-turbo-16k'      : gpt_35_turbo_16k,
-        'gpt-4'                  : gpt_4,
-        'gpt-4-0613'             : gpt_4_0613,
         'gpt-3.5-turbo-16k-0613' : gpt_35_turbo_16k_0613,
+        
+        # gpt-4
+        'gpt-4'          : gpt_4,
+        'gpt-4-0613'     : gpt_4_0613,
+        'gpt-4-32k'      : gpt_4_32k,
+        'gpt-4-32k-0613' : gpt_4_32k_0613,
         
         # Bard
         'palm2'       : palm,
